@@ -2,29 +2,25 @@ suite: Sentinel service configuration
 templates:
   - templates/service-sentinel.yaml
 tests:
-  - it: should not render when sentinel is disabled
+  - it: should not render when mode is replication
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
     template: templates/service-sentinel.yaml
     asserts:
       - hasDocuments:
           count: 0
 
-  - it: should not render when replica is disabled
-    set:
-      replica.enabled: false
-      replica.sentinel.enabled: true
+  - it: should not render in standalone mode
     template: templates/service-sentinel.yaml
     asserts:
       - hasDocuments:
           count: 0
 
-  - it: should render when sentinel is enabled
+  - it: should render when mode is sentinel
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service-sentinel.yaml
     asserts:
       - isKind:
@@ -35,9 +31,8 @@ tests:
 
   - it: should have sentinel component label
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service-sentinel.yaml
     asserts:
       - equal:
@@ -46,9 +41,8 @@ tests:
 
   - it: should have correct default port
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service-sentinel.yaml
     asserts:
       - equal:
@@ -63,9 +57,8 @@ tests:
 
   - it: should have correct default service type
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service-sentinel.yaml
     asserts:
       - equal:
@@ -74,9 +67,8 @@ tests:
 
   - it: should select all pods
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service-sentinel.yaml
     asserts:
       - isSubset:
@@ -89,10 +81,9 @@ tests:
 
   - it: should support custom annotations
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
-      replica.sentinel.service.annotations:
+      mode: sentinel
+      persistence.size: "5Gi"
+      services.sentinel.annotations:
         custom.io/annotation: "value"
     template: templates/service-sentinel.yaml
     asserts:
@@ -102,11 +93,10 @@ tests:
 
   - it: should support NodePort
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
-      replica.sentinel.service.type: NodePort
-      replica.sentinel.service.nodePort: 30026
+      mode: sentinel
+      persistence.size: "5Gi"
+      services.sentinel.type: NodePort
+      services.sentinel.nodePort: 30026
     template: templates/service-sentinel.yaml
     asserts:
       - equal:
@@ -118,10 +108,9 @@ tests:
 
   - it: should support custom clusterIP
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
-      replica.sentinel.service.clusterIP: "10.0.0.5"
+      mode: sentinel
+      persistence.size: "5Gi"
+      services.sentinel.clusterIP: "10.0.0.5"
     template: templates/service-sentinel.yaml
     asserts:
       - equal:

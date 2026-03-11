@@ -3,19 +3,19 @@ templates:
   - templates/statefulset.yaml
   - templates/init_config.yaml
 tests:
-  - it: should fail when replica enabled but no size provided
+  - it: should fail when replication mode but no size provided
     set:
-      replica.enabled: true
-      replica.persistence.size: ""
+      mode: replication
+      persistence.size: ""
     template: templates/statefulset.yaml
     asserts:
       - failedTemplate:
-          errorPattern: "Replica mode requires persistent storage.*"
+          errorPattern: "Replication/sentinel mode requires persistent storage.*"
 
-  - it: should succeed when replica enabled with size provided
+  - it: should succeed when replication mode with size provided
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
     template: templates/statefulset.yaml
     asserts:
       - isKind:
@@ -24,11 +24,11 @@ tests:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: "5Gi"
 
-  - it: should succeed when replica enabled with custom storageClass
+  - it: should succeed when replication mode with custom storageClass
     set:
-      replica.enabled: true
-      replica.persistence.size: "10Gi"
-      replica.persistence.storageClass: "fast-ssd"
+      mode: replication
+      persistence.size: "10Gi"
+      persistence.storageClass: "fast-ssd"
     template: templates/statefulset.yaml
     asserts:
       - isKind:
@@ -42,8 +42,8 @@ tests:
 
   - it: should always have annotations block even without podAnnotations
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       podAnnotations: null
     template: templates/statefulset.yaml
     asserts:
@@ -56,8 +56,8 @@ tests:
 
   - it: should include podAnnotations when provided
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       podAnnotations:
         prometheus.io/scrape: "true"
         custom.annotation: "value"
@@ -76,8 +76,8 @@ tests:
 
   - it: should use image pull policy for containers, initContainers and metrics
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       image.pullPolicy: Always
       metrics.enabled: true
       metrics.exporter.image.pullPolicy: Always
@@ -95,8 +95,8 @@ tests:
 
   - it: should not have imagePullSecrets when not configured
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
     template: templates/statefulset.yaml
     asserts:
       - isKind:
@@ -106,8 +106,8 @@ tests:
 
   - it: should render imagePullSecrets from values.imagePullSecrets
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       imagePullSecrets:
         - myregistrykey
         - anotherregistrykey
@@ -123,8 +123,8 @@ tests:
 
   - it: should render imagePullSecrets from global.imagePullSecrets
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       global.imagePullSecrets:
         - globalregistrykey
     template: templates/statefulset.yaml
@@ -138,8 +138,8 @@ tests:
 
   - it: should merge global and local imagePullSecrets
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       global.imagePullSecrets:
         - globalregistrykey
       imagePullSecrets:
@@ -156,8 +156,8 @@ tests:
 
   - it: should render extraVolumes
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       extraVolumes:
         - name: extra-config
           configMap:
@@ -184,8 +184,8 @@ tests:
 
   - it: should render extraVolumeMounts for main container
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       extraVolumeMounts:
         - name: extra-config
           mountPath: /extra-config
@@ -210,8 +210,8 @@ tests:
 
   - it: should render both extraVolumes and extraVolumeMounts together
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       extraVolumes:
         - name: extra-config
           configMap:
@@ -239,8 +239,8 @@ tests:
 
   - it: should have readiness probe on main container
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
     template: templates/statefulset.yaml
     asserts:
       - isKind:
@@ -253,8 +253,8 @@ tests:
 
   - it: should have TLS readiness probe when TLS enabled
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
       tls.enabled: true
       tls.existingSecret: "my-tls-secret"
     template: templates/statefulset.yaml
@@ -267,9 +267,9 @@ tests:
 
   - it: should include persistentVolumeClaimRetentionPolicy when configured
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.persistentVolumeClaimRetentionPolicy:
+      mode: replication
+      persistence.size: "5Gi"
+      persistentVolumeClaimRetentionPolicy:
         whenDeleted: Retain
         whenScaled: Delete
     template: templates/statefulset.yaml

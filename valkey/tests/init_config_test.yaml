@@ -105,9 +105,9 @@ tests:
 
   - it: should use passwordKey for replica authentication when configured
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.replicationUser: "default"
+      mode: replication
+      persistence.size: "5Gi"
+      replication.replicationUser: "default"
       auth.enabled: true
       auth.usersExistingSecret: "my-secret"
       auth.aclUsers:
@@ -123,9 +123,9 @@ tests:
 
   - it: should default to username for replica authentication when passwordKey not configured
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.replicationUser: "default"
+      mode: replication
+      persistence.size: "5Gi"
+      replication.replicationUser: "default"
       auth.enabled: true
       auth.aclUsers:
         default:
@@ -140,8 +140,8 @@ tests:
 
   - it: should use static master assignment when sentinel is disabled
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
     asserts:
       - matchRegex:
           path: data["init.sh"]
@@ -152,9 +152,8 @@ tests:
 
   - it: should query sentinel for master when sentinel is enabled
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     asserts:
       - matchRegex:
           path: data["init.sh"]
@@ -168,9 +167,8 @@ tests:
 
   - it: should fall back to pod-0 when no sentinel is available
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     asserts:
       - matchRegex:
           path: data["init.sh"]
@@ -178,9 +176,8 @@ tests:
 
   - it: should use TLS when querying sentinel with TLS enabled
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
       tls.enabled: true
       tls.existingSecret: "tls-secret"
     asserts:
@@ -190,9 +187,8 @@ tests:
 
   - it: should not use TLS when querying sentinel without TLS
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     asserts:
       - notMatchRegex:
           path: data["init.sh"]
@@ -203,10 +199,9 @@ tests:
 
   - it: should iterate over correct number of pods for sentinel discovery
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.replicas: 3
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
+      replicas: 3
     asserts:
       - matchRegex:
           path: data["init.sh"]

@@ -1,4 +1,4 @@
-{{- if .Values.replica.enabled }}
+{{- if ne .Values.mode "standalone" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -12,7 +12,7 @@ spec:
   publishNotReadyAddresses: true
   ports:
     - name: tcp
-      port: {{ .Values.service.port }}
+      port: {{ .Values.services.write.port }}
       targetPort: tcp
       protocol: TCP
   selector:

@@ -1,10 +1,10 @@
-suite: replica read service configuration
+suite: read service configuration
 templates:
   - templates/service-read.yaml
 tests:
-  - it: should have correct default service type when replica is enabled
+  - it: should have correct default service type when replication mode
     set:
-      replica.enabled: true
+      mode: replication
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -14,8 +14,8 @@ tests:
           value: ClusterIP
   - it: should be able to set custom clusterIP
     set:
-      replica.enabled: true
-      replica.service.clusterIP: "10.0.0.2"
+      mode: replication
+      services.read.clusterIP: "10.0.0.2"
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -25,7 +25,7 @@ tests:
           value: "10.0.0.2"
   - it: should have correct default ports
     set:
-      replica.enabled: true
+      mode: replication
     template: templates/service-read.yaml
     asserts:
       - contains:
@@ -37,9 +37,9 @@ tests:
             name: tcp
   - it: should be able to set custom nodePort
     set:
-      replica.enabled: true
-      replica.service.type: "NodePort"
-      replica.service.nodePort: 30081
+      mode: replication
+      services.read.type: "NodePort"
+      services.read.nodePort: 30081
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -49,8 +49,8 @@ tests:
           value: 30081
   - it: should be able to set custom appProtocol
     set:
-      replica.enabled: true
-      replica.service.appProtocol: "my-protocol"
+      mode: replication
+      services.read.appProtocol: "my-protocol"
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -60,8 +60,8 @@ tests:
           value: "my-protocol"
   - it: should be able to set custom loadBalancerClass
     set:
-      replica.enabled: true
-      replica.service.loadBalancerClass: "custom-lb-class"
+      mode: replication
+      services.read.loadBalancerClass: "custom-lb-class"
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -71,7 +71,7 @@ tests:
           value: "custom-lb-class"
   - it: shouldn't have loadBalancerClass by default
     set:
-      replica.enabled: true
+      mode: replication
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -80,8 +80,8 @@ tests:
           path: spec.loadBalancerClass
   - it: should be able to set loadBalancerSourceRanges
     set:
-      replica.enabled: true
-      replica.service.loadBalancerSourceRanges: ["10.0.0.1"]
+      mode: replication
+      services.read.loadBalancerSourceRanges: ["10.0.0.1"]
     template: templates/service-read.yaml
     asserts:
       - isKind:
@@ -91,7 +91,7 @@ tests:
           value: ["10.0.0.1"]
   - it: should have correct selector labels
     set:
-      replica.enabled: true
+      mode: replication
     template: templates/service-read.yaml
     asserts:
       - isSubset:
@@ -99,17 +99,15 @@ tests:
           content:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/name: valkey
-  - it: should not render when replica is disabled
-    set:
-      replica.enabled: false
+  - it: should not render in standalone mode
     template: templates/service-read.yaml
     asserts:
       - hasDocuments:
           count: 0
-  - it: should not render when replica.service is disabled
+  - it: should not render when read service is disabled
     set:
-      replica.enabled: true
-      replica.service.enabled: false
+      mode: replication
+      services.read.enabled: false
     template: templates/service-read.yaml
     asserts:
       - hasDocuments:
@@ -117,8 +115,8 @@ tests:
 
   - it: should select only replicas in sentinel mode
     set:
-      replica.enabled: true
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service-read.yaml
     asserts:
       - equal:
@@ -127,7 +125,7 @@ tests:
 
   - it: should not have role selector without sentinel
     set:
-      replica.enabled: true
+      mode: replication
     template: templates/service-read.yaml
     asserts:
       - notExists:

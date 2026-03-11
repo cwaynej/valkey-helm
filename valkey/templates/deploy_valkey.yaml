@@ -1,7 +1,6 @@
-{{- if not .Values.replica.enabled }}
+{{- if eq .Values.mode "standalone" }}
 {{- $fullname := include "valkey.fullname" . }}
-{{- $storage := .Values.dataStorage }}
-{{- $createPVC := and $storage.enabled (not (empty $storage.requestedSize)) (empty $storage.persistentVolumeClaimName) }}
+{{- $createPVC := and .Values.persistence.enabled (not (empty .Values.persistence.size)) (empty .Values.persistence.existingClaim) }}
 {{- include "valkey.validateAuthConfig" . }}
 apiVersion: apps/v1
 kind: Deployment
@@ -53,10 +52,10 @@ spec:
           {{- end }}
           command: [ "/scripts/init.sh" ]
           volumeMounts:
-            - name: {{ .Values.dataStorage.volumeName }}
+            - name: valkey-data
               mountPath: /data
-              {{- if .Values.dataStorage.subPath }}
-              subPath: {{ .Values.dataStorage.subPath }}
+              {{- if .Values.persistence.subPath }}
+              subPath: {{ .Values.persistence.subPath }}
               {{- end }}
             - name: scripts
               mountPath: /scripts
@@ -107,10 +106,10 @@ spec:
               value: "{{ $val }}"
             {{- end }}
             - name: VALKEY_LOGLEVEL
-              value: "{{ .Values.valkeyLogLevel }}"
+              value: "{{ .Values.logLevel }}"
           ports:
             - name: tcp
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.services.write.port }}
               protocol: TCP
           startupProbe:
             exec:
@@ -136,10 +135,10 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            - name: {{ .Values.dataStorage.volumeName }}
+            - name: valkey-data
               mountPath: /data
-              {{- if .Values.dataStorage.subPath }}
-              subPath: {{ .Values.dataStorage.subPath }}
+              {{- if .Values.persistence.subPath }}
+              subPath: {{ .Values.persistence.subPath }}
               {{- end }}
             {{- if .Values.tls.enabled }}
             - name: {{ include "valkey.fullname" . }}-tls
@@ -260,16 +259,16 @@ spec:
             defaultMode: 0400
         {{- end }}
         {{- end }}
-        - name: {{ $storage.volumeName }}
-        {{- if $storage.persistentVolumeClaimName }}
+        - name: valkey-data
+        {{- if .Values.persistence.existingClaim }}
           persistentVolumeClaim:
-            claimName: {{ $storage.persistentVolumeClaimName }}
+            claimName: {{ .Values.persistence.existingClaim }}
         {{- else if $createPVC }}
           persistentVolumeClaim:
             claimName: {{ include "valkey.fullname" . }}
-        {{- else if $storage.hostPath }}
+        {{- else if .Values.persistence.hostPath }}
           hostPath:
-            path: {{ $storage.hostPath }}
+            path: {{ .Values.persistence.hostPath }}
             type: DirectoryOrCreate
         {{- else }}
           emptyDir: {}

@@ -1,8 +1,7 @@
-{{- if .Values.replica.enabled }}
+{{- if ne .Values.mode "standalone" }}
 {{- include "valkey.validateAuthConfig" . }}
-{{- include "valkey.validateReplicaPersistence" . }}
-{{- include "valkey.validateReplicaAuth" . }}
-{{- include "valkey.validateSentinelConfig" . }}
+{{- include "valkey.validatePersistence" . }}
+{{- include "valkey.validateReplicationAuth" . }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -11,11 +10,11 @@ metadata:
     {{- include "valkey.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "valkey.fullname" . }}-headless
-  replicas: {{ .Values.replica.replicas }}
+  replicas: {{ .Values.replicas }}
   podManagementPolicy: OrderedReady
-  {{- if .Values.replica.persistentVolumeClaimRetentionPolicy }}
+  {{- with .Values.persistentVolumeClaimRetentionPolicy }}
   persistentVolumeClaimRetentionPolicy:
-    {{- toYaml .Values.replica.persistentVolumeClaimRetentionPolicy | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
@@ -24,13 +23,13 @@ spec:
   - metadata:
       name: valkey-data
     spec:
-      accessModes: {{ toYaml .Values.replica.persistence.accessModes | nindent 8 }}
-      {{- if .Values.replica.persistence.storageClass }}
-      storageClassName: {{ .Values.replica.persistence.storageClass | quote }}
+      accessModes: {{ toYaml .Values.persistence.accessModes | nindent 8 }}
+      {{- if .Values.persistence.storageClass }}
+      storageClassName: {{ .Values.persistence.storageClass | quote }}
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.replica.persistence.size | quote }}
+          storage: {{ .Values.persistence.size | quote }}
   template:
     metadata:
       labels:
@@ -49,13 +48,13 @@ spec:
         {{- if .Values.valkeyConfig }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | trunc 32 | quote }}
         {{- end }}
-        {{- if .Values.replica.sentinel.enabled }}
+        {{- if eq .Values.mode "sentinel" }}
         checksum/sentinel: {{ include (print $.Template.BasePath "/sentinel-configmap.yaml") . | sha256sum | trunc 32 | quote }}
         {{- end }}
     spec:
       {{- (include "valkey.imagePullSecrets" .) | nindent 6 }}
       {{- /* Reconciler sidecar requires the service account token for K8s API access */}}
-      automountServiceAccountToken: {{ if .Values.replica.sentinel.enabled }}true{{ else }}{{ .Values.serviceAccount.automount }}{{ end }}
+      automountServiceAccountToken: {{ if eq .Values.mode "sentinel" }}true{{ else }}{{ .Values.serviceAccount.automount }}{{ end }}
       serviceAccountName: {{ include "valkey.serviceAccountName" . }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName | quote }}
@@ -129,10 +128,10 @@ spec:
               value: "{{ $val }}"
             {{- end }}
             - name: VALKEY_LOGLEVEL
-              value: "{{ .Values.valkeyLogLevel }}"
+              value: "{{ .Values.logLevel }}"
           ports:
             - name: tcp
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.services.write.port }}
               protocol: TCP
           startupProbe:
             exec:
@@ -179,7 +178,7 @@ spec:
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-        {{- if .Values.replica.sentinel.enabled }}
+        {{- if eq .Values.mode "sentinel" }}
         - name: sentinel
           image: {{ include "valkey.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -188,30 +187,30 @@ spec:
           command: [ "/sentinel-scripts/sentinel-init.sh" ]
           ports:
             - name: sentinel
-              containerPort: {{ .Values.replica.sentinel.port }}
+              containerPort: {{ .Values.sentinel.port }}
               protocol: TCP
           startupProbe:
             exec:
               {{- if .Values.tls.enabled }}
-              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
               {{- else }}
-              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} ping" ]
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.sentinel.port }} ping" ]
               {{- end }}
           livenessProbe:
             exec:
               {{- if .Values.tls.enabled }}
-              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
               {{- else }}
-              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} ping" ]
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.sentinel.port }} ping" ]
               {{- end }}
           readinessProbe:
             exec:
               {{- if .Values.tls.enabled }}
-              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
               {{- else }}
-              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} ping" ]
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.sentinel.port }} ping" ]
               {{- end }}
-          {{- with .Values.replica.sentinel.resources }}
+          {{- with .Values.sentinel.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -238,21 +237,21 @@ spec:
             {{- end }}
         - name: reconciler
           image: {{ include "valkey.reconciler.image" . }}
-          imagePullPolicy: {{ .Values.replica.sentinel.reconciler.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.sentinel.reconciler.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           env:
             - name: SENTINEL_HOST
               value: "localhost"
             - name: SENTINEL_PORT
-              value: "{{ .Values.replica.sentinel.port }}"
+              value: "{{ .Values.sentinel.port }}"
             - name: MASTER_NAME
               value: "{{ include "valkey.sentinelMasterName" . }}"
             - name: HEADLESS_SVC
               value: "{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
             - name: RECONCILE_INTERVAL
-              value: "{{ .Values.replica.sentinel.reconciler.interval }}"
-          {{- with .Values.replica.sentinel.reconciler.resources }}
+              value: "{{ .Values.sentinel.reconcileInterval }}"
+          {{- with .Values.sentinel.reconciler.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -307,7 +306,7 @@ spec:
           configMap:
             name: {{ include "valkey.fullname" . }}-init-scripts
             defaultMode: 0555
-        {{- if .Values.replica.sentinel.enabled }}
+        {{- if eq .Values.mode "sentinel" }}
         - name: sentinel-scripts
           configMap:
             name: {{ include "valkey.fullname" . }}-sentinel-scripts
