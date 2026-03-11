@@ -453,6 +453,26 @@
                                     "type": "object"
                                 }
                             }
+                        },
+                        "service": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string"
+                                },
+                                "port": {
+                                    "type": "integer"
+                                },
+                                "annotations": {
+                                    "type": "object"
+                                },
+                                "nodePort": {
+                                    "type": "integer"
+                                },
+                                "clusterIP": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 },

@@ -298,6 +298,18 @@ replica:
       interval: "5s"
       # Resource limits/requests for the reconciler container
       resources: {}
+    # Sentinel service configuration (for client discovery via sentinel protocol)
+    service:
+      # Service type (ClusterIP, NodePort, LoadBalancer)
+      type: ClusterIP
+      # Port on which the sentinel service will be exposed
+      port: 26379
+      # Optional annotations for the sentinel service
+      annotations: {}
+      # NodePort value (if service.type is NodePort)
+      nodePort: 0
+      # ClusterIP value
+      clusterIP: ""
 
 tls:
   # Enable TLS
