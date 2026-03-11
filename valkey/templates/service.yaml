@@ -5,36 +5,36 @@ metadata:
   labels:
     {{- include "valkey.labels" . | nindent 4 }}
     app.kubernetes.io/component: primary
-  {{- with .Values.service.annotations }}
+  {{- with .Values.services.write.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ .Values.service.type }}
-  {{- if .Values.service.clusterIP }}
-  clusterIP: {{ .Values.service.clusterIP }}
+  type: {{ .Values.services.write.type }}
+  {{- if .Values.services.write.clusterIP }}
+  clusterIP: {{ .Values.services.write.clusterIP }}
   {{- end }}
-  {{- if .Values.service.loadBalancerClass }}
-  loadBalancerClass: {{ .Values.service.loadBalancerClass }}
+  {{- if .Values.services.write.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.services.write.loadBalancerClass }}
   {{- end }}
-  {{- if .Values.service.loadBalancerSourceRanges }}
-  loadBalancerSourceRanges: {{ .Values.service.loadBalancerSourceRanges }}
+  {{- if .Values.services.write.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges: {{ .Values.services.write.loadBalancerSourceRanges }}
   {{- end }}
   ports:
-    - port: {{ .Values.service.port }}
+    - port: {{ .Values.services.write.port }}
       targetPort: tcp
       protocol: TCP
       name: tcp
-      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
-      nodePort: {{ .Values.service.nodePort }}
+      {{- if and (eq .Values.services.write.type "NodePort") .Values.services.write.nodePort }}
+      nodePort: {{ .Values.services.write.nodePort }}
       {{- end }}
-      {{- if .Values.service.appProtocol }}
-      appProtocol: {{ .Values.service.appProtocol }}
+      {{- if .Values.services.write.appProtocol }}
+      appProtocol: {{ .Values.services.write.appProtocol }}
       {{- end }}
   selector:
     {{- include "valkey.selectorLabels" . | nindent 4 }}
-    {{- if .Values.replica.enabled }}
-    {{- if .Values.replica.sentinel.enabled }}
+    {{- if ne .Values.mode "standalone" }}
+    {{- if eq .Values.mode "sentinel" }}
     valkey-role: master
     {{- else }}
     statefulset.kubernetes.io/pod-name: {{ include "valkey.fullname" . }}-0

@@ -12,7 +12,7 @@ tests:
           value: ClusterIP
   - it: should be able to set custom clusterIP
     set:
-      service.clusterIP: "10.0.0.1"
+      services.write.clusterIP: "10.0.0.1"
     template: templates/service.yaml
     asserts:
       - isKind:
@@ -32,8 +32,8 @@ tests:
             name: tcp
   - it: should be able to set custom nodePort
     set:
-      service.type: "NodePort"
-      service.nodePort: 30080
+      services.write.type: "NodePort"
+      services.write.nodePort: 30080
     template: templates/service.yaml
     asserts:
       - isKind:
@@ -43,7 +43,7 @@ tests:
           value: 30080
   - it: should be able to set custom appProtocol
     set:
-      service.appProtocol: "my-protocol"
+      services.write.appProtocol: "my-protocol"
     template: templates/service.yaml
     asserts:
       - isKind:
@@ -53,7 +53,7 @@ tests:
           value: "my-protocol"
   - it: should be able to set custom loadBalancerClass
     set:
-      service.loadBalancerClass: "custom-lb-class"
+      services.write.loadBalancerClass: "custom-lb-class"
     template: templates/service.yaml
     asserts:
       - isKind:
@@ -70,7 +70,7 @@ tests:
           path: spec.loadBalancerClass
   - it: should be able to set loadBalancerSourceRanges
     set:
-      service.loadBalancerSourceRanges: ["10.0.0.1"]
+      services.write.loadBalancerSourceRanges: ["10.0.0.1"]
     template: templates/service.yaml
     asserts:
       - isKind:
@@ -87,10 +87,10 @@ tests:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/name: valkey
 
-  - it: should select pod-0 in replica mode without sentinel
+  - it: should select pod-0 in replication mode without sentinel
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
+      mode: replication
+      persistence.size: "5Gi"
     template: templates/service.yaml
     asserts:
       - equal:
@@ -99,9 +99,8 @@ tests:
 
   - it: should select valkey-role master in sentinel mode
     set:
-      replica.enabled: true
-      replica.persistence.size: "5Gi"
-      replica.sentinel.enabled: true
+      mode: sentinel
+      persistence.size: "5Gi"
     template: templates/service.yaml
     asserts:
       - equal:
@@ -111,8 +110,6 @@ tests:
           path: spec.selector["statefulset.kubernetes.io/pod-name"]
 
   - it: should not have pod selector in standalone mode
-    set:
-      replica.enabled: false
     template: templates/service.yaml
     asserts:
       - notExists:

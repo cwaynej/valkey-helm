@@ -1,5 +1,4 @@
-{{- include "valkey.validateSentinelConfig" . }}
-{{- if and .Values.replica.enabled .Values.replica.sentinel.enabled }}
+{{- if eq .Values.mode "sentinel" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -19,24 +18,24 @@ data:
     {
     {{- if .Values.tls.enabled }}
       echo "port 0"
-      echo "tls-port {{ .Values.replica.sentinel.port }}"
+      echo "tls-port {{ .Values.sentinel.port }}"
     {{- else }}
-      echo "port {{ .Values.replica.sentinel.port }}"
+      echo "port {{ .Values.sentinel.port }}"
     {{- end }}
       echo "dir /data"
-      echo "sentinel monitor {{ include "valkey.sentinelMasterName" . }} {{ include "valkey.fullname" . }}-0.{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} {{ .Values.service.port }} {{ .Values.replica.sentinel.quorum }}"
-      echo "sentinel down-after-milliseconds {{ include "valkey.sentinelMasterName" . }} {{ .Values.replica.sentinel.downAfterMilliseconds }}"
-      echo "sentinel failover-timeout {{ include "valkey.sentinelMasterName" . }} {{ .Values.replica.sentinel.failoverTimeout }}"
-      echo "sentinel parallel-syncs {{ include "valkey.sentinelMasterName" . }} {{ .Values.replica.sentinel.parallelSyncs }}"
+      echo "sentinel monitor {{ include "valkey.sentinelMasterName" . }} {{ include "valkey.fullname" . }}-0.{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} {{ .Values.services.write.port }} {{ .Values.sentinel.quorum }}"
+      echo "sentinel down-after-milliseconds {{ include "valkey.sentinelMasterName" . }} {{ .Values.sentinel.downAfterMilliseconds }}"
+      echo "sentinel failover-timeout {{ include "valkey.sentinelMasterName" . }} {{ .Values.sentinel.failoverTimeout }}"
+      echo "sentinel parallel-syncs {{ include "valkey.sentinelMasterName" . }} {{ .Values.sentinel.parallelSyncs }}"
       echo "sentinel resolve-hostnames yes"
       echo "sentinel announce-hostnames yes"
       echo "sentinel announce-ip ${MY_FQDN}"
-      echo "sentinel announce-port {{ .Values.replica.sentinel.port }}"
+      echo "sentinel announce-port {{ .Values.sentinel.port }}"
     } > "$SENTINEL_CONFIG"
 
     {{- if .Values.auth.enabled }}
     # Read replication user password from mounted secret at runtime
-    {{- $replUsername := .Values.replica.replicationUser }}
+    {{- $replUsername := .Values.replication.replicationUser }}
     {{- $replUser := index .Values.auth.aclUsers $replUsername }}
     {{- $replPasswordKey := $replUser.passwordKey | default $replUsername }}
 

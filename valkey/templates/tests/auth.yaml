@@ -41,25 +41,25 @@ spec:
           {{- end }}
 
           # Test authentication
-          PING_RESULT=$(valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.service.port }} $TLS_FLAGS --user "$USERNAME" --pass "$PASSWORD" PING)
+          PING_RESULT=$(valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.services.write.port }} $TLS_FLAGS --user "$USERNAME" --pass "$PASSWORD" PING)
           if [ "$PING_RESULT" != "PONG" ]; then
-            echo "✗ Authentication test failed: expected 'PONG', got '$PING_RESULT'"
+            echo "Authentication test failed: expected 'PONG', got '$PING_RESULT'"
             exit 1
           fi
-          echo "✓ PING successful: $PING_RESULT"
+          echo "PING successful: $PING_RESULT"
 
           # Test that we can set and get a value (if permissions allow)
-          if valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.service.port }} $TLS_FLAGS --user "$USERNAME" --pass "$PASSWORD" SET test-key-generated "test-value" 2>/dev/null; then
-            VALUE=$(valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.service.port }} $TLS_FLAGS --user "$USERNAME" --pass "$PASSWORD" GET test-key-generated)
+          if valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.services.write.port }} $TLS_FLAGS --user "$USERNAME" --pass "$PASSWORD" SET test-key-generated "test-value" 2>/dev/null; then
+            VALUE=$(valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.services.write.port }} $TLS_FLAGS --user "$USERNAME" --pass "$PASSWORD" GET test-key-generated)
             if [ "$VALUE" = "test-value" ]; then
-              echo "✓ Authentication test passed with write permissions"
+              echo "Authentication test passed with write permissions"
               exit 0
             else
-              echo "✗ Authentication test failed: expected 'test-value', got '$VALUE'"
+              echo "Authentication test failed: expected 'test-value', got '$VALUE'"
               exit 1
             fi
           else
-            echo "✓ Authentication test passed (read-only or restricted permissions)"
+            echo "Authentication test passed (read-only or restricted permissions)"
             exit 0
           fi
       volumeMounts:
@@ -113,15 +113,15 @@ spec:
           {{- end }}
 
           # Test basic connection (no auth - will fail if auth is properly configured)
-          PING_RESULT=$(valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.service.port }} $TLS_FLAGS PING 2>&1 || true)
+          PING_RESULT=$(valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.services.write.port }} $TLS_FLAGS PING 2>&1 || true)
           if [ "$PING_RESULT" = "PONG" ]; then
-            echo "✗ Authentication test failed: server allows unauthenticated access"
+            echo "Authentication test failed: server allows unauthenticated access"
             exit 1
           fi
 
-          echo "✓ Authentication is enforced (unauthenticated access denied)"
-          echo "✓ Received expected error: $PING_RESULT"
-          echo "⚠ Manual verification recommended for usersExistingSecret configuration"
+          echo "Authentication is enforced (unauthenticated access denied)"
+          echo "Received expected error: $PING_RESULT"
+          echo "Manual verification recommended for usersExistingSecret configuration"
           exit 0
       volumeMounts:
         - name: valkey-users-secret

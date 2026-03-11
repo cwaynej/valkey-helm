@@ -1,30 +1,30 @@
-{{- if and .Values.dataStorage.enabled (not .Values.replica.enabled) (not (empty .Values.dataStorage.requestedSize)) (empty .Values.dataStorage.persistentVolumeClaimName) }}
+{{- if and .Values.persistence.enabled (eq .Values.mode "standalone") (not (empty .Values.persistence.size)) (empty .Values.persistence.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "valkey.fullname" . }}
   labels:
     {{- include "valkey.labels" . | nindent 4 }}
-    {{- with .Values.dataStorage.labels }}
+    {{- with .Values.persistence.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- if or .Values.dataStorage.keepPvc .Values.dataStorage.annotations }}
+  {{- if or .Values.persistence.keepOnUninstall .Values.persistence.annotations }}
   annotations:
-    {{- if .Values.dataStorage.keepPvc }}
+    {{- if .Values.persistence.keepOnUninstall }}
     "helm.sh/resource-policy": keep
     {{- end }}
-    {{- with .Values.dataStorage.annotations }}
+    {{- with .Values.persistence.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
   accessModes:
-    {{- toYaml .Values.dataStorage.accessModes | nindent 4 }}
+    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
   volumeMode: Filesystem
   resources:
     requests:
-      storage: {{ .Values.dataStorage.requestedSize }}
-  {{- if .Values.dataStorage.className }}
-  storageClassName: {{ .Values.dataStorage.className }}
+      storage: {{ .Values.persistence.size }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
   {{- end }}
 {{- end }}

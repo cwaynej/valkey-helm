@@ -143,24 +143,24 @@ data:
     log "ACL file created with 0400 permissions"
     {{- end }}
 
-    {{- if .Values.replica.enabled }}
+    {{- if ne .Values.mode "standalone" }}
     # Replica mode configuration
     log "Configuring replication mode"
 
     POD_INDEX=${POD_INDEX:-0}
     IS_MASTER=false
-    MASTER_PORT="{{ .Values.service.port }}"
+    MASTER_PORT="{{ .Values.services.write.port }}"
 
-    {{- if .Values.replica.sentinel.enabled }}
+    {{- if eq .Values.mode "sentinel" }}
     # Sentinel-aware master discovery
     HEADLESS="{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
-    SENTINEL_PORT="{{ .Values.replica.sentinel.port }}"
+    SENTINEL_PORT="{{ .Values.sentinel.port }}"
     MASTER_NAME="{{ include "valkey.sentinelMasterName" . }}"
     MY_FQDN="$(hostname).${HEADLESS}"
     MASTER_HOST=""
 
     log "Querying sentinel for current master..."
-    TOTAL_PODS={{ .Values.replica.replicas }}
+    TOTAL_PODS={{ .Values.replicas }}
     for i in $(seq 0 $((TOTAL_PODS - 1))); do
       PEER="{{ include "valkey.fullname" . }}-${i}.${HEADLESS}"
       [ "$PEER" = "$MY_FQDN" ] && continue
@@ -211,7 +211,7 @@ data:
         echo "# Replica Configuration"
         echo "replicaof $MASTER_HOST $MASTER_PORT"
         echo "replica-announce-ip {{ include "valkey.fullname" . }}-$POD_INDEX.{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
-        {{- if .Values.replica.disklessSync }}
+        {{- if .Values.replication.disklessSync }}
         echo ""
         echo "# Diskless replication"
         echo "repl-diskless-sync yes"
@@ -225,7 +225,7 @@ data:
 
       {{- if .Values.auth.enabled }}
       # Get the password for the replication user
-      {{- $replUsername := .Values.replica.replicationUser }}
+      {{- $replUsername := .Values.replication.replicationUser }}
       {{- $replUser := index .Values.auth.aclUsers $replUsername }}
       {{- $replPasswordKey := $replUser.passwordKey | default $replUsername }}
       REPL_PASSWORD=$(get_user_password "{{ $replUsername }}" "{{ $replPasswordKey }}") || exit 1
@@ -247,15 +247,15 @@ data:
       {{- end }}
     fi
 
-    {{- if gt (int .Values.replica.minReplicasToWrite) 0 }}
+    {{- if gt (int .Values.replication.minReplicasToWrite) 0 }}
     # Write safety - require minimum healthy replicas
     {
       echo ""
       echo "# Minimum replicas for write operations"
-      echo "min-replicas-to-write {{ .Values.replica.minReplicasToWrite }}"
-      echo "min-replicas-max-lag {{ .Values.replica.minReplicasMaxLag }}"
+      echo "min-replicas-to-write {{ .Values.replication.minReplicasToWrite }}"
+      echo "min-replicas-max-lag {{ .Values.replication.minReplicasMaxLag }}"
     } >>"$VALKEY_CONFIG"
-    log "Configured write safety: require {{ .Values.replica.minReplicasToWrite }} replicas with max {{ .Values.replica.minReplicasMaxLag }}s lag"
+    log "Configured write safety: require {{ .Values.replication.minReplicasToWrite }} replicas with max {{ .Values.replication.minReplicasMaxLag }}s lag"
     {{- end }}
     {{- end }}
 

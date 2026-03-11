@@ -167,23 +167,23 @@ Headless service name for replication
 {{- end -}}
 
 {{/*
-Validate replica persistence configuration
+Validate persistence configuration
 */}}
-{{- define "valkey.validateReplicaPersistence" -}}
-{{- if .Values.replica.enabled }}
-  {{- if not .Values.replica.persistence.size }}
-    {{- fail "Replica mode requires persistent storage. Please set replica.persistence.size (e.g., '5Gi')" }}
+{{- define "valkey.validatePersistence" -}}
+{{- if ne .Values.mode "standalone" }}
+  {{- if not .Values.persistence.size }}
+    {{- fail "Replication/sentinel mode requires persistent storage. Please set persistence.size (e.g., '5Gi')" }}
   {{- end }}
 {{- end }}
 {{- end -}}
 
 {{/*
-Validate replica authentication configuration
+Validate replication authentication configuration
 */}}
-{{- define "valkey.validateReplicaAuth" -}}
-{{- if and .Values.replica.enabled .Values.auth.enabled }}
-  {{- if not (hasKey .Values.auth.aclUsers .Values.replica.replicationUser) }}
-    {{- fail (printf "Replication user '%s' (replica.replicationUser) must be defined in auth.aclUsers. The chart requires this to retrieve the password for replica authentication." .Values.replica.replicationUser) }}
+{{- define "valkey.validateReplicationAuth" -}}
+{{- if and (ne .Values.mode "standalone") .Values.auth.enabled }}
+  {{- if not (hasKey .Values.auth.aclUsers .Values.replication.replicationUser) }}
+    {{- fail (printf "Replication user '%s' (replication.replicationUser) must be defined in auth.aclUsers. The chart requires this to retrieve the password for replica authentication." .Values.replication.replicationUser) }}
   {{- end }}
 {{- end }}
 {{- end -}}
@@ -192,22 +192,12 @@ Validate replica authentication configuration
 Sentinel master name
 */}}
 {{- define "valkey.sentinelMasterName" -}}
-{{ include "valkey.fullname" . }}
+{{ .Values.sentinel.masterName }}
 {{- end -}}
 
 {{/*
 Returns the reconciler container image
 */}}
 {{- define "valkey.reconciler.image" -}}
-{{- include "common.image" (dict "image" (dict "registry" .Values.replica.sentinel.reconciler.image.registry "repository" .Values.replica.sentinel.reconciler.image.repository "tag" .Values.replica.sentinel.reconciler.image.tag) "global" .Values.global) }}
+{{- include "common.image" (dict "image" (dict "registry" .Values.sentinel.reconciler.image.registry "repository" .Values.sentinel.reconciler.image.repository "tag" .Values.sentinel.reconciler.image.tag) "global" .Values.global) }}
 {{- end -}}
-
-{{/*
-Validate sentinel configuration
-*/}}
-{{- define "valkey.validateSentinelConfig" -}}
-{{- if and .Values.replica.sentinel.enabled (not .Values.replica.enabled) }}
-  {{- fail "sentinel requires replication mode (replica.enabled=true)" }}
-{{- end }}
-{{- end -}}
-
