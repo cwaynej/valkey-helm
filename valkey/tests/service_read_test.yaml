@@ -114,3 +114,21 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: should select only replicas in sentinel mode
+    set:
+      replica.enabled: true
+      replica.sentinel.enabled: true
+    template: templates/service-read.yaml
+    asserts:
+      - equal:
+          path: spec.selector.valkey-role
+          value: replica
+
+  - it: should not have role selector without sentinel
+    set:
+      replica.enabled: true
+    template: templates/service-read.yaml
+    asserts:
+      - notExists:
+          path: spec.selector.valkey-role
