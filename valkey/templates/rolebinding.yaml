@@ -1,4 +1,4 @@
-{{- if .Values.rbac.enabled }}
+{{- if or .Values.rbac.enabled (and .Values.replica.enabled .Values.replica.sentinel.enabled) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

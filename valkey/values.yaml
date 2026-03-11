@@ -36,13 +36,11 @@ serviceAccount:
 
 rbac:
   # Create a Role and RoleBinding for the service account
+  # NOTE: Automatically enabled when replica.sentinel.enabled is true,
+  # which auto-adds pod get/patch rules for the reconciler sidecar.
+  # Any rules defined below are merged with the auto-generated sentinel rules.
   enabled: false
-  # RBAC rules to grant the service account
-  # Example for sentinel pod labeling:
-  #   rules:
-  #     - apiGroups: [""]
-  #       resources: ["pods"]
-  #       verbs: ["get", "patch"]
+  # Additional RBAC rules to grant the service account
   rules: []
 
 # Annotations and labels for the pods
@@ -268,6 +266,38 @@ replica:
   # Controls when PVCs are deleted (requires Kubernetes 1.23+)
   # More info: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention
   persistentVolumeClaimRetentionPolicy: {}
+
+  # Sentinel configuration for automatic failover
+  sentinel:
+    # Enable sentinel sidecars (requires replica.enabled: true)
+    enabled: false
+    # Sentinel port
+    port: 26379
+    # Number of sentinels that must agree on a master failure before triggering failover
+    quorum: 2
+    # Time in milliseconds a master must be unreachable before considered down
+    downAfterMilliseconds: 5000
+    # Timeout in milliseconds for a failover operation
+    failoverTimeout: 60000
+    # Number of replicas that can be reconfigured simultaneously during failover
+    parallelSyncs: 1
+    # Resource limits/requests for the sentinel container
+    resources: {}
+    # Reconciler sidecar configuration (labels pods with valkey-role=master/replica)
+    reconciler:
+      image:
+        # Image registry
+        registry: ""
+        # Reconciler container image repository
+        repository: valkey-reconciler
+        # Image tag
+        tag: latest
+        # Image pull policy
+        pullPolicy: IfNotPresent
+      # How often the reconciler checks sentinel for role changes
+      interval: "5s"
+      # Resource limits/requests for the reconciler container
+      resources: {}
 
 tls:
   # Enable TLS

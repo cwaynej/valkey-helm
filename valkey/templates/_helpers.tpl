@@ -94,7 +94,7 @@ The common image function that renders the container image
 {{- printf "%s/%s:%s" $registryName $repositoryName $tag }}
 {{- else }}
 {{- printf "%s:%s" $repositoryName $tag }}
-{{ end }}
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -185,6 +185,29 @@ Validate replica authentication configuration
   {{- if not (hasKey .Values.auth.aclUsers .Values.replica.replicationUser) }}
     {{- fail (printf "Replication user '%s' (replica.replicationUser) must be defined in auth.aclUsers. The chart requires this to retrieve the password for replica authentication." .Values.replica.replicationUser) }}
   {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Sentinel master name
+*/}}
+{{- define "valkey.sentinelMasterName" -}}
+{{ include "valkey.fullname" . }}
+{{- end -}}
+
+{{/*
+Returns the reconciler container image
+*/}}
+{{- define "valkey.reconciler.image" -}}
+{{- include "common.image" (dict "image" (dict "registry" .Values.replica.sentinel.reconciler.image.registry "repository" .Values.replica.sentinel.reconciler.image.repository "tag" .Values.replica.sentinel.reconciler.image.tag) "global" .Values.global) }}
+{{- end -}}
+
+{{/*
+Validate sentinel configuration
+*/}}
+{{- define "valkey.validateSentinelConfig" -}}
+{{- if and .Values.replica.sentinel.enabled (not .Values.replica.enabled) }}
+  {{- fail "sentinel requires replication mode (replica.enabled=true)" }}
 {{- end }}
 {{- end -}}
 
