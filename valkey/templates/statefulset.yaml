@@ -11,7 +11,7 @@ metadata:
     {{- include "valkey.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "valkey.fullname" . }}-headless
-  replicas: {{ add (int .Values.replica.replicas) 1 }}
+  replicas: {{ .Values.replica.replicas }}
   podManagementPolicy: OrderedReady
   {{- if .Values.replica.persistentVolumeClaimRetentionPolicy }}
   persistentVolumeClaimRetentionPolicy:
