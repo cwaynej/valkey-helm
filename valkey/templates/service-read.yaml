@@ -34,4 +34,7 @@ spec:
       {{- end }}
   selector:
     {{- include "valkey.selectorLabels" . | nindent 4 }}
+    {{- if .Values.replica.sentinel.enabled }}
+    valkey-role: replica
+    {{- end }}
 {{- end }}

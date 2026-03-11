@@ -86,3 +86,36 @@ tests:
           content:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/name: valkey
+
+  - it: should select pod-0 in replica mode without sentinel
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.selector["statefulset.kubernetes.io/pod-name"]
+          value: RELEASE-NAME-valkey-0
+
+  - it: should select valkey-role master in sentinel mode
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.selector.valkey-role
+          value: master
+      - notExists:
+          path: spec.selector["statefulset.kubernetes.io/pod-name"]
+
+  - it: should not have pod selector in standalone mode
+    set:
+      replica.enabled: false
+    template: templates/service.yaml
+    asserts:
+      - notExists:
+          path: spec.selector["statefulset.kubernetes.io/pod-name"]
+      - notExists:
+          path: spec.selector.valkey-role
