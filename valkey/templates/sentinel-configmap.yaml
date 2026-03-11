@@ -1,0 +1,75 @@
+{{- include "valkey.validateSentinelConfig" . }}
+{{- if and .Values.replica.enabled .Values.replica.sentinel.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "valkey.fullname" . }}-sentinel-scripts
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+data:
+  sentinel-init.sh: |-
+    #!/bin/sh
+    set -eu
+
+    SENTINEL_CONFIG="/data/conf/sentinel.conf"
+    MY_FQDN="$(hostname).{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+
+    mkdir -p /data/conf
+
+    {
+    {{- if .Values.tls.enabled }}
+      echo "port 0"
+      echo "tls-port {{ .Values.replica.sentinel.port }}"
+    {{- else }}
+      echo "port {{ .Values.replica.sentinel.port }}"
+    {{- end }}
+      echo "dir /data"
+      echo "sentinel monitor {{ include "valkey.sentinelMasterName" . }} {{ include "valkey.fullname" . }}-0.{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} {{ .Values.service.port }} {{ .Values.replica.sentinel.quorum }}"
+      echo "sentinel down-after-milliseconds {{ include "valkey.sentinelMasterName" . }} {{ .Values.replica.sentinel.downAfterMilliseconds }}"
+      echo "sentinel failover-timeout {{ include "valkey.sentinelMasterName" . }} {{ .Values.replica.sentinel.failoverTimeout }}"
+      echo "sentinel parallel-syncs {{ include "valkey.sentinelMasterName" . }} {{ .Values.replica.sentinel.parallelSyncs }}"
+      echo "sentinel resolve-hostnames yes"
+      echo "sentinel announce-hostnames yes"
+      echo "sentinel announce-ip ${MY_FQDN}"
+      echo "sentinel announce-port {{ .Values.replica.sentinel.port }}"
+    } > "$SENTINEL_CONFIG"
+
+    {{- if .Values.auth.enabled }}
+    # Read replication user password from mounted secret at runtime
+    {{- $replUsername := .Values.replica.replicationUser }}
+    {{- $replUser := index .Values.auth.aclUsers $replUsername }}
+    {{- $replPasswordKey := $replUser.passwordKey | default $replUsername }}
+
+    PASSWORD=""
+    {{- if .Values.auth.usersExistingSecret }}
+    if [ -f "/valkey-users-secret/{{ $replPasswordKey }}" ]; then
+      PASSWORD=$(cat "/valkey-users-secret/{{ $replPasswordKey }}")
+    elif [ -f "/valkey-auth-secret/{{ $replUsername }}-password" ]; then
+      PASSWORD=$(cat "/valkey-auth-secret/{{ $replUsername }}-password")
+    fi
+    {{- else }}
+    if [ -f "/valkey-auth-secret/{{ $replUsername }}-password" ]; then
+      PASSWORD=$(cat "/valkey-auth-secret/{{ $replUsername }}-password")
+    fi
+    {{- end }}
+
+    if [ -n "$PASSWORD" ]; then
+      echo "sentinel auth-pass {{ include "valkey.sentinelMasterName" . }} $PASSWORD" >> "$SENTINEL_CONFIG"
+      echo "sentinel auth-user {{ include "valkey.sentinelMasterName" . }} {{ $replUsername }}" >> "$SENTINEL_CONFIG"
+    fi
+    {{- end }}
+
+    {{- if .Values.tls.enabled }}
+    {
+      echo "tls-cert-file /tls/{{ .Values.tls.serverPublicKey }}"
+      echo "tls-key-file /tls/{{ .Values.tls.serverKey }}"
+      echo "tls-ca-cert-file /tls/{{ .Values.tls.caPublicKey }}"
+      {{- if .Values.tls.dhParamKey }}
+      echo "tls-dh-params-file /tls/{{ .Values.tls.dhParamKey }}"
+      {{- end }}
+      echo "tls-replication yes"
+    } >> "$SENTINEL_CONFIG"
+    {{- end }}
+
+    exec valkey-server "$SENTINEL_CONFIG" --sentinel
+{{- end }}

@@ -1,4 +1,4 @@
-{{- if .Values.rbac.enabled }}
+{{- if or .Values.rbac.enabled (and .Values.replica.enabled .Values.replica.sentinel.enabled) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -6,5 +6,12 @@ metadata:
   labels:
     {{- include "valkey.labels" . | nindent 4 }}
 rules:
-  {{- toYaml .Values.rbac.rules | nindent 2 }}
+  {{- if and .Values.replica.enabled .Values.replica.sentinel.enabled }}
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "patch"]
+  {{- end }}
+  {{- with .Values.rbac.rules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}

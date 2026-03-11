@@ -2,6 +2,7 @@
 {{- include "valkey.validateAuthConfig" . }}
 {{- include "valkey.validateReplicaPersistence" . }}
 {{- include "valkey.validateReplicaAuth" . }}
+{{- include "valkey.validateSentinelConfig" . }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -48,9 +49,13 @@ spec:
         {{- if .Values.valkeyConfig }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | trunc 32 | quote }}
         {{- end }}
+        {{- if .Values.replica.sentinel.enabled }}
+        checksum/sentinel: {{ include (print $.Template.BasePath "/sentinel-configmap.yaml") . | sha256sum | trunc 32 | quote }}
+        {{- end }}
     spec:
       {{- (include "valkey.imagePullSecrets" .) | nindent 6 }}
-      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      {{- /* Reconciler sidecar requires the service account token for K8s API access */}}
+      automountServiceAccountToken: {{ if .Values.replica.sentinel.enabled }}true{{ else }}{{ .Values.serviceAccount.automount }}{{ end }}
       serviceAccountName: {{ include "valkey.serviceAccountName" . }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName | quote }}
@@ -174,6 +179,84 @@ spec:
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- if .Values.replica.sentinel.enabled }}
+        - name: sentinel
+          image: {{ include "valkey.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command: [ "/sentinel-scripts/sentinel-init.sh" ]
+          ports:
+            - name: sentinel
+              containerPort: {{ .Values.replica.sentinel.port }}
+              protocol: TCP
+          startupProbe:
+            exec:
+              {{- if .Values.tls.enabled }}
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
+              {{- else }}
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} ping" ]
+              {{- end }}
+          livenessProbe:
+            exec:
+              {{- if .Values.tls.enabled }}
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
+              {{- else }}
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} ping" ]
+              {{- end }}
+          readinessProbe:
+            exec:
+              {{- if .Values.tls.enabled }}
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} --cacert /tls/{{ .Values.tls.caPublicKey }} --tls ping" ]
+              {{- else }}
+              command: [ "sh", "-c", "valkey-cli -p {{ .Values.replica.sentinel.port }} ping" ]
+              {{- end }}
+          {{- with .Values.replica.sentinel.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+            - name: sentinel-scripts
+              mountPath: /sentinel-scripts
+            {{- if .Values.tls.enabled }}
+            - name: {{ include "valkey.fullname" . }}-tls
+              mountPath: /tls
+            {{- end }}
+            {{- if .Values.auth.enabled }}
+            {{- if .Values.auth.usersExistingSecret }}
+            - name: valkey-users-secret
+              mountPath: /valkey-users-secret
+              readOnly: true
+            {{- end }}
+            {{- if or (include "valkey.hasInlinePasswords" . | eq "true") .Values.auth.aclConfig }}
+            - name: valkey-auth-secret
+              mountPath: /valkey-auth-secret
+              readOnly: true
+            {{- end }}
+            {{- end }}
+        - name: reconciler
+          image: {{ include "valkey.reconciler.image" . }}
+          imagePullPolicy: {{ .Values.replica.sentinel.reconciler.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: SENTINEL_HOST
+              value: "localhost"
+            - name: SENTINEL_PORT
+              value: "{{ .Values.replica.sentinel.port }}"
+            - name: MASTER_NAME
+              value: "{{ include "valkey.sentinelMasterName" . }}"
+            - name: HEADLESS_SVC
+              value: "{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+            - name: RECONCILE_INTERVAL
+              value: "{{ .Values.replica.sentinel.reconciler.interval }}"
+          {{- with .Values.replica.sentinel.reconciler.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: metrics
           image: {{ include "valkey.metrics.exporter.image" . }}
@@ -224,6 +307,12 @@ spec:
           configMap:
             name: {{ include "valkey.fullname" . }}-init-scripts
             defaultMode: 0555
+        {{- if .Values.replica.sentinel.enabled }}
+        - name: sentinel-scripts
+          configMap:
+            name: {{ include "valkey.fullname" . }}-sentinel-scripts
+            defaultMode: 0555
+        {{- end }}
         {{- if .Values.auth.enabled }}
         - name: valkey-acl
           emptyDir:

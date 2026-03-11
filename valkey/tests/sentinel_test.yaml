@@ -1,0 +1,264 @@
+suite: Sentinel support
+templates:
+  - templates/statefulset.yaml
+  - templates/sentinel-configmap.yaml
+  - templates/init_config.yaml
+  - templates/role.yaml
+  - templates/rolebinding.yaml
+tests:
+  - it: should not render sentinel configmap when sentinel is disabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+    template: templates/sentinel-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render sentinel configmap when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/sentinel-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+
+  - it: should fail when sentinel enabled without replica mode
+    set:
+      replica.enabled: false
+      replica.sentinel.enabled: true
+    template: templates/sentinel-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "sentinel requires replication mode"
+
+  - it: should have sentinel container when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: sentinel
+          any: true
+
+  - it: should have reconciler container when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: reconciler
+          any: true
+
+  - it: should not have sentinel or reconciler containers when sentinel is disabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+    template: templates/statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers
+          content:
+            name: sentinel
+          any: true
+      - notContains:
+          path: spec.template.spec.containers
+          content:
+            name: reconciler
+          any: true
+
+  - it: should set automountServiceAccountToken to true when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      serviceAccount.automount: false
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+
+  - it: should respect serviceAccount.automount when sentinel is disabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      serviceAccount.automount: false
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should have correct reconciler env vars
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      replica.sentinel.port: 26379
+      replica.sentinel.reconciler.interval: "10s"
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: reconciler
+            env:
+              - name: SENTINEL_HOST
+                value: "localhost"
+              - name: SENTINEL_PORT
+                value: "26379"
+              - name: MASTER_NAME
+                value: "RELEASE-NAME-valkey"
+              - name: HEADLESS_SVC
+                value: "RELEASE-NAME-valkey-headless.NAMESPACE.svc.cluster.local"
+              - name: RECONCILE_INTERVAL
+                value: "10s"
+          any: true
+
+  - it: should have sentinel-scripts volume when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: sentinel-scripts
+            configMap:
+              name: RELEASE-NAME-valkey-sentinel-scripts
+              defaultMode: 365
+
+  - it: should have sentinel port in container
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      replica.sentinel.port: 26379
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: sentinel
+          any: true
+
+  - it: should have checksum annotation for sentinel configmap
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/statefulset.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/sentinel"]
+
+  - it: should auto-create Role with pod rules when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/role.yaml
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: rules[0].apiGroups
+          value: [""]
+      - equal:
+          path: rules[0].resources
+          value: ["pods"]
+      - equal:
+          path: rules[0].verbs
+          value: ["get", "patch"]
+
+  - it: should auto-create RoleBinding when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/rolebinding.yaml
+    asserts:
+      - isKind:
+          of: RoleBinding
+
+  - it: should not render Role when sentinel and rbac are both disabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      rbac.enabled: false
+    template: templates/role.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should merge user rules with sentinel rules in Role
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      rbac.rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get"]
+    template: templates/role.yaml
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: rules[0].resources
+          value: ["pods"]
+      - equal:
+          path: rules[1].resources
+          value: ["configmaps"]
+
+  - it: should use TLS for sentinel probes when TLS is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      tls.enabled: true
+      tls.existingSecret: "my-tls-secret"
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: sentinel
+          any: true
+
+  - it: should include sentinel config with correct monitor line
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      replica.sentinel.quorum: 2
+      replica.sentinel.downAfterMilliseconds: 5000
+      replica.sentinel.failoverTimeout: 60000
+    template: templates/sentinel-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["sentinel-init.sh"]
+          pattern: "sentinel monitor"
+      - matchRegex:
+          path: data["sentinel-init.sh"]
+          pattern: "sentinel resolve-hostnames yes"
+      - matchRegex:
+          path: data["sentinel-init.sh"]
+          pattern: "sentinel announce-hostnames yes"
