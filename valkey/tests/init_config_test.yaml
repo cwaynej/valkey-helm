@@ -138,6 +138,80 @@ tests:
           path: data["init.sh"]
           pattern: 'REPL_PASSWORD=\$\(get_user_password "default" "default"\)'
 
+  - it: should use static master assignment when sentinel is disabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+    asserts:
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: "Static master assignment"
+      - notMatchRegex:
+          path: data["init.sh"]
+          pattern: "Querying sentinel for current master"
+
+  - it: should query sentinel for master when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: "Querying sentinel for current master"
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: "SENTINEL get-master-addr-by-name"
+      - notMatchRegex:
+          path: data["init.sh"]
+          pattern: "Static master assignment"
+
+  - it: should fall back to pod-0 when no sentinel is available
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: "No sentinel available, falling back to pod-0 as initial master"
+
+  - it: should use TLS when querying sentinel with TLS enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      tls.enabled: true
+      tls.existingSecret: "tls-secret"
+    asserts:
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: "valkey-cli -h .* --tls --cacert /tls/ca\\.crt SENTINEL get-master-addr-by-name"
+
+  - it: should not use TLS when querying sentinel without TLS
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    asserts:
+      - notMatchRegex:
+          path: data["init.sh"]
+          pattern: "--tls --cacert"
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: 'valkey-cli -h "\$PEER" -p "\$SENTINEL_PORT" SENTINEL get-master-addr-by-name'
+
+  - it: should iterate over correct number of pods for sentinel discovery
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.replicas: 2
+      replica.sentinel.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["init.sh"]
+          pattern: "TOTAL_PODS=3"
+
   - it: should have correct metadata
     asserts:
       - isKind:

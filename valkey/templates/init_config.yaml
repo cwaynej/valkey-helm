@@ -147,23 +147,63 @@ data:
     # Replica mode configuration
     log "Configuring replication mode"
 
-    # Use POD_INDEX from Kubernetes metadata
     POD_INDEX=${POD_INDEX:-0}
     IS_MASTER=false
+    MASTER_PORT="{{ .Values.service.port }}"
 
-    # Check if this is pod-0 (master)
+    {{- if .Values.replica.sentinel.enabled }}
+    # Sentinel-aware master discovery
+    HEADLESS="{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+    SENTINEL_PORT="{{ .Values.replica.sentinel.port }}"
+    MASTER_NAME="{{ include "valkey.sentinelMasterName" . }}"
+    MY_FQDN="$(hostname).${HEADLESS}"
+    MASTER_HOST=""
+
+    log "Querying sentinel for current master..."
+    TOTAL_PODS={{ add (int .Values.replica.replicas) 1 }}
+    for i in $(seq 0 $((TOTAL_PODS - 1))); do
+      PEER="{{ include "valkey.fullname" . }}-${i}.${HEADLESS}"
+      [ "$PEER" = "$MY_FQDN" ] && continue
+      {{- if .Values.tls.enabled }}
+      RESULT=$(valkey-cli -h "$PEER" -p "$SENTINEL_PORT" --tls --cacert /tls/{{ .Values.tls.caPublicKey }} SENTINEL get-master-addr-by-name "$MASTER_NAME" 2>/dev/null) || continue
+      {{- else }}
+      RESULT=$(valkey-cli -h "$PEER" -p "$SENTINEL_PORT" SENTINEL get-master-addr-by-name "$MASTER_NAME" 2>/dev/null) || continue
+      {{- end }}
+      if [ -n "$RESULT" ]; then
+        MASTER_HOST=$(echo "$RESULT" | head -1)
+        log "Sentinel on $PEER reports master: $MASTER_HOST"
+        break
+      fi
+    done
+
+    if [ -z "$MASTER_HOST" ]; then
+      log "No sentinel available, falling back to pod-0 as initial master"
+      MASTER_HOST="{{ include "valkey.fullname" . }}-0.${HEADLESS}"
+      if [ "$POD_INDEX" = "0" ]; then
+        IS_MASTER=true
+        log "This pod (index $POD_INDEX) is configured as MASTER (bootstrap)"
+      else
+        log "This pod (index $POD_INDEX) is configured as REPLICA (bootstrap)"
+      fi
+    elif [ "$MASTER_HOST" = "$MY_FQDN" ]; then
+      IS_MASTER=true
+      log "Sentinel confirms this pod is MASTER"
+    else
+      log "Sentinel reports master is $MASTER_HOST, this pod is REPLICA"
+    fi
+    {{- else }}
+    # Static master assignment (pod-0 is always master)
+    MASTER_HOST="{{ include "valkey.fullname" . }}-0.{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
     if [ "$POD_INDEX" = "0" ]; then
       IS_MASTER=true
       log "This pod (index $POD_INDEX) is configured as MASTER"
     else
       log "This pod (index $POD_INDEX) is configured as REPLICA"
     fi
+    {{- end }}
 
     # Configure replica settings
     if [ "$IS_MASTER" = "false" ]; then
-      MASTER_HOST="{{ include "valkey.fullname" . }}-0.{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
-      MASTER_PORT="{{ .Values.service.port }}"
-
       log "Configuring replica to follow master at $MASTER_HOST:$MASTER_PORT"
 
       {
