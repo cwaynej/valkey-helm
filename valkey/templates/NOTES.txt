@@ -18,13 +18,51 @@ App version:  {{ .Chart.AppVersion }}
 Your Valkey deployment is running in REPLICATION mode:
 - 1 Master  ({{ include "valkey.fullname" . }}-0)
 - {{ .Values.replica.replicas }} Replica(s)
+{{- if .Values.replica.sentinel.enabled }}
+- Sentinel: ENABLED (automatic failover)
+{{- end }}
+
+{{- if .Values.replica.sentinel.enabled }}
+
+SENTINEL (Automatic Failover)
+
+  Each pod runs a sentinel sidecar and a reconciler sidecar.
+  Sentinel monitors the master and triggers failover automatically.
+  The reconciler labels pods with valkey-role=master/replica so
+  services follow the current master.
+
+  Sentinel service: {{ include "valkey.fullname" . }}-sentinel
+  Sentinel port:    {{ .Values.replica.sentinel.port }}
+  Master name:      {{ include "valkey.sentinelMasterName" . }}
+
+  Query sentinel for the current master:
+  $ kubectl -n {{ .Release.Namespace }} exec {{ include "valkey.fullname" . }}-0 -c sentinel -- \
+      valkey-cli -p {{ .Values.replica.sentinel.port }}{{ if .Values.tls.enabled }} --tls --cacert /tls/{{ .Values.tls.caPublicKey }}{{ end }} \
+      SENTINEL get-master-addr-by-name {{ include "valkey.sentinelMasterName" . }}
+
+  Check pod roles:
+  $ kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} --show-labels | grep valkey-role
+
+{{- end }}
+
+WRITE Operations (Master only):
+  Service: {{ include "valkey.fullname" . }}
+  Type:    {{ .Values.service.type }}
+  Port:    {{ .Values.service.port }}
+{{- if .Values.replica.sentinel.enabled }}
+  Note:    Follows the current master via valkey-role=master label selector.
+           After a failover, traffic automatically routes to the new master.
+{{- end }}
 
 {{- if .Values.replica.service.enabled }}
 
-READ Operations (Load-balanced across all pods):
+READ Operations ({{ if .Values.replica.sentinel.enabled }}Replicas only{{ else }}Load-balanced across all pods{{ end }}):
   Service: {{ include "valkey.fullname" . }}-read
   Type:    {{ .Values.replica.service.type }}
   Port:    {{ .Values.replica.service.port }}
+{{- if .Values.replica.sentinel.enabled }}
+  Note:    Selects only pods with valkey-role=replica label.
+{{- end }}
 
 1) In-cluster access:
    $ valkey-cli -h {{ include "valkey.fullname" . }}-read -p {{ .Values.replica.service.port }}{{ if .Values.tls.enabled }} --tls{{- end }} GET key
@@ -49,11 +87,6 @@ Direct Pod Access:
 {{- range $i := until (int .Values.replica.replicas) }}
   Replica: {{ include "valkey.fullname" $ }}-{{ add $i 1 }}.{{ include "valkey.headlessServiceName" $ }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}
 {{- end }}
-
-WRITE Operations (Master only):
-  Service: {{ include "valkey.fullname" . }}
-  Type:    {{ .Values.service.type }}
-  Port:    {{ .Values.service.port }}
 
 1) In-cluster access:
   $ valkey-cli -h {{ include "valkey.fullname" . }} -p {{ .Values.service.port }}{{ if .Values.tls.enabled }} --tls{{- end }} PING
