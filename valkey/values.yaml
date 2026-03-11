@@ -34,6 +34,17 @@ serviceAccount:
   # Name of an existing service account to use (if create: false)
   name: ""
 
+rbac:
+  # Create a Role and RoleBinding for the service account
+  enabled: false
+  # RBAC rules to grant the service account
+  # Example for sentinel pod labeling:
+  #   rules:
+  #     - apiGroups: [""]
+  #       resources: ["pods"]
+  #       verbs: ["get", "patch"]
+  rules: []
+
 # Annotations and labels for the pods
 podAnnotations: {}
 podLabels: {}

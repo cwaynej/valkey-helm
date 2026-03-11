@@ -1,0 +1,90 @@
+suite: RBAC configuration
+templates:
+  - templates/role.yaml
+  - templates/rolebinding.yaml
+tests:
+  - it: should not render Role when rbac.enabled is false
+    set:
+      rbac.enabled: false
+    template: templates/role.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render RoleBinding when rbac.enabled is false
+    set:
+      rbac.enabled: false
+    template: templates/rolebinding.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render Role when rbac.enabled is true
+    set:
+      rbac.enabled: true
+      rbac.rules:
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get", "patch"]
+    template: templates/role.yaml
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: rules[0].apiGroups
+          value: [""]
+      - equal:
+          path: rules[0].resources
+          value: ["pods"]
+      - equal:
+          path: rules[0].verbs
+          value: ["get", "patch"]
+
+  - it: should render RoleBinding when rbac.enabled is true
+    set:
+      rbac.enabled: true
+      rbac.rules:
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get", "patch"]
+    template: templates/rolebinding.yaml
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: roleRef.kind
+          value: Role
+      - equal:
+          path: roleRef.name
+          value: RELEASE-NAME-valkey
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount
+      - equal:
+          path: subjects[0].name
+          value: RELEASE-NAME-valkey
+
+  - it: should have correct labels on Role
+    set:
+      rbac.enabled: true
+      rbac.rules: []
+    template: templates/role.yaml
+    asserts:
+      - isKind:
+          of: Role
+      - exists:
+          path: metadata.labels["app.kubernetes.io/name"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/instance"]
+
+  - it: should use custom service account name in RoleBinding
+    set:
+      rbac.enabled: true
+      rbac.rules: []
+      serviceAccount.create: true
+      serviceAccount.name: "custom-sa"
+    template: templates/rolebinding.yaml
+    asserts:
+      - equal:
+          path: subjects[0].name
+          value: custom-sa
