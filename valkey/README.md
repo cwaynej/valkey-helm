@@ -42,7 +42,7 @@ helm install valkey valkey/valkey --set replica.enabled=true --set replica.persi
 
 **Services:**
 
-* `valkey`: Master/write service
+* `valkey`: Master/write service (pinned to pod-0)
 * `valkey-read`: Read service (load-balances across all pods) - optional
 * `valkey-headless`: Headless service for pod discovery
 
@@ -57,6 +57,80 @@ replica:
 ```
 
 If fewer than `minReplicasToWrite` replicas are available, the master will reject write operations.
+
+### Sentinel Mode (Automatic Failover)
+
+Deploy Valkey with sentinel for automatic failover. Sentinel monitors the master and promotes a replica if the master becomes unavailable.
+
+```bash
+helm install valkey valkey/valkey \
+  --set replica.enabled=true \
+  --set replica.persistence.size=5Gi \
+  --set replica.sentinel.enabled=true
+```
+
+**Architecture:**
+
+Each pod runs three containers:
+* **valkey**: The main Valkey server (master or replica)
+* **sentinel**: A Valkey Sentinel instance that monitors the master and coordinates failover
+* **reconciler**: A sidecar that queries sentinel and labels pods with `valkey-role=master` or `valkey-role=replica`
+
+**Services:**
+
+| Service | Selector | Description |
+|---------|----------|-------------|
+| `valkey` | `valkey-role: master` | Write service, follows the current master |
+| `valkey-read` | `valkey-role: replica` | Read service, targets replicas only |
+| `valkey-headless` | All pods | Headless service for pod discovery |
+| `valkey-sentinel` | All pods | Sentinel protocol for client discovery |
+
+**How failover works:**
+
+1. Sentinel detects the master is unreachable (after `downAfterMilliseconds`)
+2. Sentinels reach quorum and elect a leader
+3. The leader sentinel promotes a replica to master
+4. The reconciler detects the role change and updates pod labels
+5. Kubernetes services automatically route traffic to the new master
+
+**Sentinel-aware clients** can connect via the sentinel service to discover the current master:
+
+```
+sentinel service: valkey-sentinel:26379
+master name:      <release-name>-valkey
+```
+
+**RBAC** is automatically enabled when sentinel is active. The reconciler needs `get` and `patch` permissions on pods to update role labels.
+
+**Configuration:**
+
+```yaml
+replica:
+  sentinel:
+    enabled: true
+    port: 26379              # Sentinel port
+    quorum: 2                # Sentinels needed to agree on master failure
+    downAfterMilliseconds: 5000  # Time before master is considered down
+    failoverTimeout: 60000   # Failover operation timeout
+    parallelSyncs: 1         # Replicas reconfigured simultaneously
+    resources: {}             # Sentinel container resources
+    reconciler:
+      image:
+        registry: ""
+        repository: valkey-reconciler
+        tag: latest
+        pullPolicy: IfNotPresent
+      interval: "5s"         # How often to check sentinel for role changes
+      resources: {}          # Reconciler container resources
+    service:
+      type: ClusterIP        # Sentinel service type
+      port: 26379            # Sentinel service port
+      annotations: {}
+      nodePort: 0
+      clusterIP: ""
+```
+
+**Note:** During initial bootstrap (~5-10 seconds), the reconciler has not yet labeled pods, so services will have zero endpoints briefly. This is expected and resolves once sentinel elects a master and the reconciler runs its first cycle.
 
 ## Storage
 
@@ -321,10 +395,27 @@ tls:
 | replica.service.clusterIP | string | `""` |  |
 | replica.service.appProtocol | string | `""` |  |
 | replica.service.loadBalancerClass | string | `""` |  |
-| replica.persistence. |  | `""` |  |
 | replica.persistence.size | string | `""` | Required if replica is enabled |
 | replica.persistence.storageClass | string | `""` |  |
-| replica.persistence.accessModes | list | `""` |  |
+| replica.persistence.accessModes | list | `["ReadWriteOnce"]` |  |
+| replica.sentinel.enabled | bool | `false` | Enable sentinel for automatic failover |
+| replica.sentinel.port | int | `26379` | Sentinel port |
+| replica.sentinel.quorum | int | `2` | Sentinels needed to agree on master failure |
+| replica.sentinel.downAfterMilliseconds | int | `5000` | Time before master is considered down |
+| replica.sentinel.failoverTimeout | int | `60000` | Failover operation timeout (ms) |
+| replica.sentinel.parallelSyncs | int | `1` | Replicas reconfigured simultaneously |
+| replica.sentinel.resources | object | `{}` | Sentinel container resources |
+| replica.sentinel.reconciler.image.registry | string | `""` | Reconciler image registry |
+| replica.sentinel.reconciler.image.repository | string | `"valkey-reconciler"` | Reconciler image repository |
+| replica.sentinel.reconciler.image.tag | string | `"latest"` | Reconciler image tag |
+| replica.sentinel.reconciler.image.pullPolicy | string | `"IfNotPresent"` | Reconciler image pull policy |
+| replica.sentinel.reconciler.interval | string | `"5s"` | How often to check sentinel for role changes |
+| replica.sentinel.reconciler.resources | object | `{}` | Reconciler container resources |
+| replica.sentinel.service.type | string | `"ClusterIP"` | Sentinel service type |
+| replica.sentinel.service.port | int | `26379` | Sentinel service port |
+| replica.sentinel.service.annotations | object | `{}` | Sentinel service annotations |
+| replica.sentinel.service.nodePort | int | `0` | Sentinel service NodePort |
+| replica.sentinel.service.clusterIP | string | `""` | Sentinel service ClusterIP |
 | resources | object | `{}` |  |
 | securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | securityContext.readOnlyRootFilesystem | bool | `true` |  |
@@ -336,6 +427,8 @@ tls:
 | service.type | string | `"ClusterIP"` |  |
 | service.appProtocol | string | `""` |  |
 | service.loadBalancerClass | string | `""` |  |
+| rbac.enabled | bool | `false` | Create Role and RoleBinding (auto-enabled with sentinel) |
+| rbac.rules | list | `[]` | Additional RBAC rules to grant the service account |
 | serviceAccount.annotations | object | `{}` |  |
 | serviceAccount.automount | bool | `false` |  |
 | serviceAccount.create | bool | `true` |  |
