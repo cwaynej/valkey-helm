@@ -1,0 +1,129 @@
+suite: Sentinel service configuration
+templates:
+  - templates/service-sentinel.yaml
+tests:
+  - it: should not render when sentinel is disabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+    template: templates/service-sentinel.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when replica is disabled
+    set:
+      replica.enabled: false
+      replica.sentinel.enabled: true
+    template: templates/service-sentinel.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when sentinel is enabled
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/service-sentinel.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-valkey-sentinel
+
+  - it: should have sentinel component label
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/service-sentinel.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: sentinel
+
+  - it: should have correct default port
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/service-sentinel.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 26379
+      - equal:
+          path: spec.ports[0].targetPort
+          value: sentinel
+      - equal:
+          path: spec.ports[0].name
+          value: sentinel
+
+  - it: should have correct default service type
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/service-sentinel.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should select all pods
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+    template: templates/service-sentinel.yaml
+    asserts:
+      - isSubset:
+          path: spec.selector
+          content:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: valkey
+      - notExists:
+          path: spec.selector.valkey-role
+
+  - it: should support custom annotations
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      replica.sentinel.service.annotations:
+        custom.io/annotation: "value"
+    template: templates/service-sentinel.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["custom.io/annotation"]
+          value: "value"
+
+  - it: should support NodePort
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      replica.sentinel.service.type: NodePort
+      replica.sentinel.service.nodePort: 30026
+    template: templates/service-sentinel.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+      - equal:
+          path: spec.ports[0].nodePort
+          value: 30026
+
+  - it: should support custom clusterIP
+    set:
+      replica.enabled: true
+      replica.persistence.size: "5Gi"
+      replica.sentinel.enabled: true
+      replica.sentinel.service.clusterIP: "10.0.0.5"
+    template: templates/service-sentinel.yaml
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: "10.0.0.5"
