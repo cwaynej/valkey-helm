@@ -382,7 +382,7 @@ tls:
 | podSecurityContext.runAsUser | int | `1000` |  |
 | priorityClassName | string | `""` |  |
 | replica.enabled | bool | `false` |  |
-| replica.replicas | int | `2` |  |
+| replica.replicas | int | `3` | Total number of pods (1 master + N-1 replicas) |
 | replica.replicationUser | string | `"default"` |  |
 | replica.disklessSync | bool | `false` |  |
 | replica.minReplicasToWrite | int | `0` |  |

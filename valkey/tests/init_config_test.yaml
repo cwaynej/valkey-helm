@@ -205,7 +205,7 @@ tests:
     set:
       replica.enabled: true
       replica.persistence.size: "5Gi"
-      replica.replicas: 2
+      replica.replicas: 3
       replica.sentinel.enabled: true
     asserts:
       - matchRegex:

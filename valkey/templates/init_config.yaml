@@ -160,7 +160,7 @@ data:
     MASTER_HOST=""
 
     log "Querying sentinel for current master..."
-    TOTAL_PODS={{ add (int .Values.replica.replicas) 1 }}
+    TOTAL_PODS={{ .Values.replica.replicas }}
     for i in $(seq 0 $((TOTAL_PODS - 1))); do
       PEER="{{ include "valkey.fullname" . }}-${i}.${HEADLESS}"
       [ "$PEER" = "$MY_FQDN" ] && continue
