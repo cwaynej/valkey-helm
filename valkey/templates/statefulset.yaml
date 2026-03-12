@@ -250,7 +250,7 @@ spec:
             - name: HEADLESS_SVC
               value: "{{ include "valkey.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
             - name: RECONCILE_INTERVAL
-              value: "{{ .Values.sentinel.reconcileInterval }}"
+              value: "{{ .Values.sentinel.reconcileInterval }}s"
           {{- with .Values.sentinel.reconciler.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
