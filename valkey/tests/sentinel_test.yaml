@@ -111,7 +111,7 @@ tests:
               - name: HEADLESS_SVC
                 value: "RELEASE-NAME-valkey-headless.NAMESPACE.svc.cluster.local"
               - name: RECONCILE_INTERVAL
-                value: "10"
+                value: "10s"
           any: true
 
   - it: should have sentinel-scripts volume when mode is sentinel
